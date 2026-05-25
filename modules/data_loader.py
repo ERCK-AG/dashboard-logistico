@@ -92,29 +92,44 @@ def get_file_mtime(filepath: Path) -> float:
 
 def _onedrive_personal_to_direct(share_url: str) -> str:
     """
-    Convierte un share link de OneDrive personal/business a URL de descarga directa
+    Convierte un share link de OneDrive PERSONAL a URL de descarga directa
     usando la API pública /shares/u! con base64.
-    Funciona con: onedrive.live.com, 1drv.ms, *.sharepoint.com
+    NOTA: Para SharePoint/OneDrive Business no funciona ("User migrated") —
+    en ese caso se usa el método &download=1.
     """
     b64 = base64.urlsafe_b64encode(share_url.encode("utf-8")).decode("utf-8")
     b64 = b64.rstrip("=")
     return f"https://api.onedrive.com/v1.0/shares/u!{b64}/root/content"
 
 
+def _sharepoint_to_direct(share_url: str) -> str:
+    """
+    Para OneDrive for Business / SharePoint:
+    simplemente agregar `&download=1` (o `?download=1` si no hay query string)
+    al share link público convierte el link en una descarga directa.
+    """
+    if "?" in share_url:
+        return share_url + "&download=1"
+    return share_url + "?download=1"
+
+
 def _to_direct_download_url(share_url: str) -> str:
     """
     Normaliza un share link a una URL de descarga directa.
-    Soporta OneDrive personal, OneDrive Business, y URLs directas.
+    Soporta OneDrive personal, OneDrive Business (SharePoint), y URLs directas.
     """
     if not share_url:
         return ""
     s = share_url.strip()
     sl = s.lower()
-    # Si ya parece una URL de descarga directa (api.onedrive.com), úsala tal cual
-    if "api.onedrive.com" in sl:
+    # Si ya parece una URL de descarga directa, úsala tal cual
+    if "api.onedrive.com" in sl or "download=1" in sl:
         return s
-    # Para todos los OneDrive (personal o business): usar la API pública /shares/u!
-    if "onedrive.live.com" in sl or "1drv.ms" in sl or "sharepoint.com" in sl:
+    # SharePoint / OneDrive for Business → método &download=1
+    if "sharepoint.com" in sl:
+        return _sharepoint_to_direct(s)
+    # OneDrive personal → método base64
+    if "onedrive.live.com" in sl or "1drv.ms" in sl:
         return _onedrive_personal_to_direct(s)
     # En otros casos: asumir que ya es una URL directa
     return s
