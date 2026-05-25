@@ -10,6 +10,8 @@ Arquitectura multi-hoja:
 """
 
 import os
+import base64
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -82,6 +84,77 @@ def get_file_mtime(filepath: Path) -> float:
         return filepath.stat().st_mtime
     except Exception:
         return 0.0
+
+
+# ---------------------------------------------------------------------------
+# Descarga desde URL (OneDrive / SharePoint / cualquier link directo)
+# ---------------------------------------------------------------------------
+
+def _onedrive_personal_to_direct(share_url: str) -> str:
+    """
+    Convierte un share link de OneDrive personal/business a URL de descarga directa
+    usando la API pública /shares/u! con base64.
+    Funciona con: onedrive.live.com, 1drv.ms, *.sharepoint.com
+    """
+    b64 = base64.urlsafe_b64encode(share_url.encode("utf-8")).decode("utf-8")
+    b64 = b64.rstrip("=")
+    return f"https://api.onedrive.com/v1.0/shares/u!{b64}/root/content"
+
+
+def _to_direct_download_url(share_url: str) -> str:
+    """
+    Normaliza un share link a una URL de descarga directa.
+    Soporta OneDrive personal, OneDrive Business, y URLs directas.
+    """
+    if not share_url:
+        return ""
+    s = share_url.strip()
+    sl = s.lower()
+    # Si ya parece una URL de descarga directa (api.onedrive.com), úsala tal cual
+    if "api.onedrive.com" in sl:
+        return s
+    # Para todos los OneDrive (personal o business): usar la API pública /shares/u!
+    if "onedrive.live.com" in sl or "1drv.ms" in sl or "sharepoint.com" in sl:
+        return _onedrive_personal_to_direct(s)
+    # En otros casos: asumir que ya es una URL directa
+    return s
+
+
+@st.cache_data(ttl=30, show_spinner="📥 Descargando Excel desde OneDrive…")
+def download_excel_from_url(share_url: str) -> Optional[str]:
+    """
+    Descarga un Excel desde una URL pública a un archivo temporal.
+    Retorna la ruta local del archivo descargado, o None en caso de error.
+    El TTL del caché es 30 segundos — coincide con load_all_sheets.
+    """
+    if not share_url:
+        return None
+    try:
+        import requests
+    except ImportError:
+        return None
+
+    direct_url = _to_direct_download_url(share_url)
+    try:
+        resp = requests.get(direct_url, timeout=30, allow_redirects=True)
+        resp.raise_for_status()
+        # Guardar en archivo temporal
+        tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        tmp.write(resp.content)
+        tmp.close()
+        return tmp.name
+    except Exception as e:
+        st.warning(f"⚠️ No se pudo descargar el Excel desde OneDrive: {e}")
+        return None
+
+
+def _get_excel_url_from_secrets() -> Optional[str]:
+    """Lee la URL del Excel desde st.secrets si está configurada."""
+    try:
+        url = st.secrets["onedrive"]["excel_url"]
+        return url.strip() if url and url.strip() else None
+    except (KeyError, FileNotFoundError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -229,18 +302,38 @@ def load_all_sheets(filepath_str: str, file_mtime: float) -> tuple[
 
 def get_data_with_refresh(folder: Optional[Path] = None):
     """
-    Encuentra el Excel más reciente y carga todas las hojas.
+    Carga el Excel:
+      1. Si hay URL configurada en st.secrets["onedrive"]["excel_url"] → descarga
+      2. Si no, busca el Excel más reciente en `folder` local
+
     Aplica overrides (empates/anulaciones) FUERA del caché para que los
     cambios surtan efecto inmediatamente sin necesidad de limpiar caché.
 
     Retorna:
         df_main, col_map, specialty_dfs, warn_list, err_list
     """
-    latest = find_latest_excel(folder)
-    if latest is None:
-        return None, None, {}, [], [
-            f"No se encontró ningún archivo Excel en: {folder or ROOT_DIR}"
-        ]
+    excel_url = _get_excel_url_from_secrets()
+    latest: Optional[Path] = None
+
+    if excel_url:
+        # Modo cloud: descargar desde OneDrive
+        downloaded = download_excel_from_url(excel_url)
+        if downloaded is None:
+            return None, None, {}, [], [
+                "No se pudo descargar el Excel desde OneDrive. "
+                "Verifica que el link sea válido y de tipo 'Cualquiera con el enlace'."
+            ]
+        latest = Path(downloaded)
+    else:
+        # Modo local: buscar archivo en la carpeta
+        latest = find_latest_excel(folder)
+        if latest is None:
+            return None, None, {}, [], [
+                f"No se encontró ningún archivo Excel en: {folder or ROOT_DIR}\n\n"
+                "💡 Si estás en Streamlit Cloud, configura la URL del Excel "
+                "en Secrets (sección [onedrive], clave `excel_url`)."
+            ]
+
     mtime = get_file_mtime(latest)
     df_main, col_map, specialty, warn_list, err_list = load_all_sheets(str(latest), mtime)
 
