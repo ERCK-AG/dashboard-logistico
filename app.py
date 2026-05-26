@@ -846,7 +846,12 @@ with tab1:
             )
 
         # ── Aplicar filtros ────────────────────────────────────────────────
-        df_g = df.copy()
+        # IMPORTANTE: si hay búsqueda activa, partimos de df_raw (ignoramos
+        # filtros del sidebar como fecha, provincia, etc.) para que la
+        # búsqueda siempre encuentre la guía. Los filtros del tab (hoja,
+        # estado) sí se respetan.
+        _search_active = bool(search_guia and search_guia.strip())
+        df_g = df_raw.copy() if _search_active else df.copy()
 
         # 1) Filtro por hoja de especialidad
         if hoja_g != "— Todos los pedidos —":
@@ -867,8 +872,16 @@ with tab1:
         tbl_g = build_gestion_table_df(df_g, col_map,
                                        search_guia=search_guia, ascending=asc_g)
 
+        # Indicador de búsqueda activa (los filtros del sidebar se ignoran)
+        if _search_active:
+            st.info(
+                f"🔍 Búsqueda activa: «**{search_guia.strip()}**» — "
+                f"{len(tbl_g):,} resultado(s). "
+                "Los filtros del sidebar (fecha, provincia, etc.) se ignoran "
+                "durante la búsqueda."
+            )
         # Indicador de hoja activa
-        if hoja_g != "— Todos los pedidos —":
+        elif hoja_g != "— Todos los pedidos —":
             st.info(f"📂 Mostrando pedidos de **{hoja_g}** — {len(tbl_g):,} registros")
         else:
             st.caption(f"Mostrando **{len(tbl_g):,}** registros")
@@ -1106,8 +1119,19 @@ with tab4:
 # ══ TAB 5 — TABLA DETALLE ══════════════════════════════════════════════════
 with tab5:
     sec("Detalle Completo de Pedidos", "📋")
-    tbl = build_table_df(df, col_map, search_guia=search_guia)
-    st.caption(f"Mostrando **{len(tbl):,}** registros")
+    # Si hay búsqueda activa, ignorar filtros del sidebar para que siempre
+    # encuentre la guía.
+    _search_active_t5 = bool(search_guia and search_guia.strip())
+    _df_for_tbl = df_raw if _search_active_t5 else df
+    tbl = build_table_df(_df_for_tbl, col_map, search_guia=search_guia)
+    if _search_active_t5:
+        st.info(
+            f"🔍 Búsqueda activa: «**{search_guia.strip()}**» — "
+            f"{len(tbl):,} resultado(s). "
+            "Los filtros del sidebar se ignoran durante la búsqueda."
+        )
+    else:
+        st.caption(f"Mostrando **{len(tbl):,}** registros")
     st.dataframe(tbl, use_container_width=True, height=520)
     st.download_button("⬇️ Exportar Excel",
                        _to_xlsx(tbl),

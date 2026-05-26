@@ -833,13 +833,15 @@ def build_table_df(
     }
     table.rename(columns=rename, inplace=True)
 
-    # Filtro de búsqueda: busca en Guía Y en Pedido (OR), sin regex
+    # Filtro de búsqueda: busca en Guía Y en Pedido Y en N° Pedido (OR), sin regex
+    # Normaliza .strip() porque las guías del Excel vienen con espacios al final.
     q = search_guia.strip()
     if q:
         mask = pd.Series(False, index=table.index)
-        for _sc in [col_map.get("guia"), col_map.get("pedido")]:
+        for _sc in [col_map.get("guia"), col_map.get("pedido"), "_n_pedido"]:
             if _sc and _sc in table.columns:
-                mask = mask | table[_sc].astype(str).str.contains(
+                _col_norm = table[_sc].astype(str).str.strip()
+                mask = mask | _col_norm.str.contains(
                     q, case=False, na=False, regex=False
                 )
         table = table[mask]
@@ -1476,12 +1478,15 @@ def build_gestion_table_df(
         )
 
     # Search filter: busca en Guía, Pedido lógico y N° Pedido (lookup) — OR sin regex
+    # Normaliza con .str.strip() porque las guías del Excel suelen venir
+    # con espacios al final (ej: "WYB174462836 ").
     q = search_guia.strip()
     if q:
         mask = pd.Series(False, index=working.index)
         for _sc in [col_guia, col_map.get("pedido"), "_n_pedido"]:
             if _sc and _sc in working.columns:
-                mask = mask | working[_sc].astype(str).str.contains(
+                _col_norm = working[_sc].astype(str).str.strip()
+                mask = mask | _col_norm.str.contains(
                     q, case=False, na=False, regex=False
                 )
         working = working[mask]
