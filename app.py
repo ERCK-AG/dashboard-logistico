@@ -1932,31 +1932,87 @@ for _sp_tab, _sp_sheet_name in zip(_sp_tabs, _sp_names):
                             pd.to_numeric(_df_tel[_col_pend], errors="coerce").fillna(0) > 0
                         ]
 
-            # ── Enriquecer GUIA 1 con estado real desde "Estado de Gestión" ─
+            # ── Enriquecer con datos desde "Estado de Gestión" ─────────────
+            # Vía GUIA 1 traemos: Estado, Recibido por, Fecha entrega, Hora entrega.
             _col_guia_main_t   = col_map.get("guia")
             _col_estado_main_t = col_map.get("estado")
             _col_g1_tel        = sv.find_col(_df_tel, "GUIA 1", "guia 1")
+
+            # Columnas adicionales desde Estado de Gestión
+            def _find_main(name_options):
+                for _n in name_options:
+                    if _n in df_raw.columns:
+                        return _n
+                return None
+            _col_recibido = _find_main(["RECIBIDO POR", "Recibido por", "recibido por"])
+            _col_fest_main = col_map.get("fecha_estado")  # FECHA ESTADO
+            _col_hora_ent  = _find_main(["HORA ENTREGA", "Hora entrega", "hora entrega"])
 
             if (_col_guia_main_t and _col_estado_main_t and _col_g1_tel
                     and _col_guia_main_t in df_raw.columns
                     and _col_estado_main_t in df_raw.columns
                     and _col_g1_tel in _df_tel.columns):
-                _lookup_estado_t = (
-                    df_raw[[_col_guia_main_t, _col_estado_main_t]]
-                    .dropna(subset=[_col_guia_main_t])
+
+                # Base del lookup: deduplicado por guía
+                _base = (
+                    df_raw.dropna(subset=[_col_guia_main_t])
                     .assign(**{
                         _col_guia_main_t: lambda d: d[_col_guia_main_t].astype(str).str.strip()
                     })
                     .drop_duplicates(subset=[_col_guia_main_t])
-                    .set_index(_col_guia_main_t)[_col_estado_main_t]
-                    .to_dict()
+                    .set_index(_col_guia_main_t)
                 )
+
+                _lookup_estado_t = _base[_col_estado_main_t].to_dict()
+                _lookup_recibido = (
+                    _base[_col_recibido].to_dict() if _col_recibido else {}
+                )
+                _lookup_fest = (
+                    _base[_col_fest_main].to_dict() if _col_fest_main else {}
+                )
+                _lookup_hora = (
+                    _base[_col_hora_ent].to_dict() if _col_hora_ent else {}
+                )
+
                 _guias_tel    = _df_tel[_col_g1_tel].astype(str).str.strip()
                 _no_guia_mask = _df_tel[_col_g1_tel].isna() | _guias_tel.isin(["nan", "None", ""])
                 _df_tel = _df_tel.copy()
+
+                # Columna existente: Estado Guía 1
                 _df_tel["Estado Guía 1"] = _guias_tel.map(_lookup_estado_t)
                 _df_tel.loc[_no_guia_mask, "Estado Guía 1"] = "⏳ Sin Guía"
                 _df_tel["Estado Guía 1"] = _df_tel["Estado Guía 1"].fillna("⚠️ No encontrada")
+
+                # NUEVO: Nombre del responsable que recibe
+                if _lookup_recibido:
+                    _df_tel["Recibido por"] = (
+                        _guias_tel.map(_lookup_recibido)
+                        .where(~_no_guia_mask, other="")
+                        .fillna("")
+                    )
+
+                # NUEVO: Fecha y Hora de recepción (sólo si Estado contiene "entregad"
+                # — para no poner una fecha que no es realmente la de entrega).
+                _is_entregado = (
+                    _df_tel["Estado Guía 1"].astype(str).str.upper().str.contains("ENTREGAD", na=False)
+                )
+
+                if _lookup_fest:
+                    _fest_series = _guias_tel.map(_lookup_fest)
+                    _fest_dt = pd.to_datetime(_fest_series, errors="coerce")
+                    _df_tel["Fecha de recepción"] = (
+                        _fest_dt.dt.strftime("%d/%m/%Y").where(_is_entregado, other="")
+                    ).fillna("")
+                    # Si existe HORA ENTREGA usa esa, sino extrae hora de FECHA ESTADO
+                    if _lookup_hora:
+                        _hora_series = _guias_tel.map(_lookup_hora).astype(str)
+                        _df_tel["Hora de recepción"] = _hora_series.where(
+                            _is_entregado, other=""
+                        ).replace({"nan": "", "None": "", "NaT": ""}).fillna("")
+                    else:
+                        _df_tel["Hora de recepción"] = (
+                            _fest_dt.dt.strftime("%H:%M").where(_is_entregado, other="")
+                        ).fillna("")
 
             st.caption(f"Mostrando **{len(_df_tel):,}** registros")
             _tbl_tel = sv.build_display_table(_df_tel)
