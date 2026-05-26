@@ -41,6 +41,18 @@
       "email": "",
       "role": "operador",
       "password": "$2b$12$jTf3SY09jIXiR0Fli.4sE.tFL2CqyBrsz3zQDDtlhBqecaddwGS7W"
+    },
+    "jorge_rada": {
+      "name": "Rada Jorge",
+      "email": "",
+      "role": "viewer",
+      "password": "$2b$12$YakbOq3O7cbfiw0PrRxRm.qv2W7anX4Ty6HqpN9k.npNp3t2n0YS2"
+    },
+    "daysi_parra": {
+      "name": "Parra Daysi Elizabeth",
+      "email": "",
+      "role": "viewer",
+      "password": "$2b$12$Apy.XmOMy7uknh3bTYwCO.obnt/axxPXmRfzE5CpMFiHUCNtkcKza"
     }
   }
 }
