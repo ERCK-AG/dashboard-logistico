@@ -1116,14 +1116,12 @@ with tab5:
 
 
 # ══ TAB EMPATES Y ANULACIONES ══════════════════════════════════════════════
-with tab_override:
-    if not _CAN_EDIT_OVERRIDES:
-        st.warning(
-            "🔒 No tienes permisos para crear empates o anulaciones.\n\n"
-            f"Tu rol actual: **{USER['role']}**. "
-            "Esta sección requiere rol **admin** u **operador**."
-        )
-        st.stop()
+# NOTA: se envuelve en una función para evitar st.stop() — antes se usaba
+# st.stop() que halta TODA la app, lo que impedía que los tabs siguientes
+# (Usuarios, Info, especialidad) se renderizaran para usuarios sin permisos.
+def _render_overrides_content():
+    """Renderiza el contenido del tab Empates. Solo se llama si el usuario
+    tiene rol admin u operador."""
     sec("Empates y Anulaciones de Guías", "🔄")
 
     st.markdown(
@@ -1332,6 +1330,18 @@ with tab_override:
                         st.rerun()
                     else:
                         st.error(msg)
+
+
+# Render del tab Empates: solo invoca la función si el usuario tiene permisos
+with tab_override:
+    if _CAN_EDIT_OVERRIDES:
+        _render_overrides_content()
+    else:
+        st.warning(
+            "🔒 No tienes permisos para crear empates o anulaciones.\n\n"
+            f"Tu rol actual: **{USER['role']}**. "
+            "Esta sección requiere rol **admin** u **operador**."
+        )
 
 
 # ══ TAB USUARIOS — Solo admin ══════════════════════════════════════════════
