@@ -572,9 +572,11 @@ if specialty_dfs:
 # "Empates" y "Info" van al FINAL (después de los tabs de especialidad)
 _BASE_TABS    = ["⏱️ Gestión", "📌 Por Estado", "🌎 Mapa", "📋 Detalle"]
 _OVERRIDE_TAB = "🔄 Empates y Anulaciones"
+_USERS_TAB    = "👥 Usuarios"
 _INFO_TAB     = "ℹ️ Info"
 # El tab Empates aparece siempre, pero el contenido se gatea por rol
 _CAN_EDIT_OVERRIDES = auth.can_edit_overrides(USER)
+_IS_ADMIN           = auth.is_admin(USER)
 
 # Ícono por hoja de especialidad
 def _sp_icon(name: str) -> str:
@@ -613,16 +615,25 @@ def _sp_display_name(name: str) -> str:
 _sp_names   = list(specialty_dfs.keys())          # hojas encontradas en el Excel
 _sp_labels  = [f"{_sp_icon(n)} {_sp_display_name(n)}" for n in _sp_names]
 
-# Orden final: [base...] + [especialidad...] + [Empates] + [Info]
-_all_labels = _BASE_TABS + _sp_labels + [_OVERRIDE_TAB, _INFO_TAB]
+# Orden final: [base...] + [especialidad...] + [Empates] + [Usuarios si admin] + [Info]
+if _IS_ADMIN:
+    _all_labels = _BASE_TABS + _sp_labels + [_OVERRIDE_TAB, _USERS_TAB, _INFO_TAB]
+else:
+    _all_labels = _BASE_TABS + _sp_labels + [_OVERRIDE_TAB, _INFO_TAB]
 
 _all_tabs = st.tabs(_all_labels)
-# Desempaquetado: 4 base + N especialidad + Empates + Info
+# Desempaquetado: 4 base + N especialidad + Empates + [Usuarios si admin] + Info
 (tab1, tab3, tab4, tab5) = _all_tabs[:4]
 _n_sp        = len(_sp_labels)
 _sp_tabs     = _all_tabs[4:4 + _n_sp]
-tab_override = _all_tabs[-2]
-tab6         = _all_tabs[-1]
+if _IS_ADMIN:
+    tab_override = _all_tabs[-3]   # Empates (antepenúltimo)
+    tab_users    = _all_tabs[-2]   # Usuarios (penúltimo)
+    tab6         = _all_tabs[-1]   # Info (último)
+else:
+    tab_override = _all_tabs[-2]
+    tab_users    = None
+    tab6         = _all_tabs[-1]
 
 
 # ══ TAB 1 — GESTIÓN DE TIEMPOS ═════════════════════════════════════════════
@@ -1321,6 +1332,245 @@ with tab_override:
                         st.rerun()
                     else:
                         st.error(msg)
+
+
+# ══ TAB USUARIOS — Solo admin ══════════════════════════════════════════════
+if tab_users is not None and _IS_ADMIN:
+    with tab_users:
+        sec("Gestión de Usuarios", "👥")
+
+        st.markdown(
+            "<div style='background:#EAF5EE;border-left:4px solid #1A7A3C;"
+            "padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:.88rem'>"
+            "<b>💡 Cómo funciona:</b><br>"
+            "1. Llena el formulario y haz click en <b>Generar credenciales</b><br>"
+            "2. Copia el bloque TOML que aparece<br>"
+            "3. Ve a <b>Streamlit Cloud → Settings → Secrets</b>, pega el bloque al final<br>"
+            "4. Click <b>Save</b> — la app reinicia y el nuevo usuario podrá ingresar"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+
+        # ── Lista de usuarios actuales ─────────────────────────────────
+        sec("Usuarios actuales", "📋")
+        try:
+            _current_users = st.secrets["auth"]["credentials"]["usernames"]
+            _users_rows = []
+            for _u, _data in _current_users.items():
+                _role = _data.get("role", "viewer")
+                _badge = {"admin": "👑", "operador": "🔧", "viewer": "👁️"}.get(_role, "👤")
+                _users_rows.append({
+                    "Usuario":  _u,
+                    "Nombre":   _data.get("name", ""),
+                    "Email":    _data.get("email", "—") or "—",
+                    "Rol":      f"{_badge} {_role}",
+                })
+            _users_df = pd.DataFrame(_users_rows)
+            _users_df.index = range(1, len(_users_df) + 1)
+            st.dataframe(_users_df, use_container_width=True, hide_index=False)
+        except Exception as _e:
+            st.warning(f"No se pudieron listar usuarios: {_e}")
+
+        st.divider()
+
+        # ── Formulario: Agregar / Actualizar usuario ───────────────────
+        sec("Agregar o actualizar usuario", "➕")
+
+        with st.form("form_new_user", clear_on_submit=False):
+            _u1, _u2 = st.columns(2)
+            with _u1:
+                _new_username = st.text_input(
+                    "Nombre de usuario *",
+                    placeholder="ej: juan_perez",
+                    help="Solo letras, números y guiones bajos. Sin espacios.",
+                    key="nu_username",
+                )
+                _new_name = st.text_input(
+                    "Nombre completo *",
+                    placeholder="ej: Juan Pérez",
+                    key="nu_name",
+                )
+                _new_email = st.text_input(
+                    "Email (opcional)",
+                    placeholder="juan@empresa.com",
+                    key="nu_email",
+                )
+            with _u2:
+                _new_password = st.text_input(
+                    "Contraseña *",
+                    type="password",
+                    placeholder="Mínimo 6 caracteres",
+                    key="nu_password",
+                )
+                _new_password2 = st.text_input(
+                    "Confirmar contraseña *",
+                    type="password",
+                    key="nu_password2",
+                )
+                _new_role = st.selectbox(
+                    "Rol *",
+                    ["admin", "operador", "viewer"],
+                    index=2,
+                    help=(
+                        "• admin: todo permitido\n"
+                        "• operador: ver + crear empates/anulaciones\n"
+                        "• viewer: solo consulta"
+                    ),
+                    key="nu_role",
+                )
+
+            _submit = st.form_submit_button(
+                "🔑 Generar credenciales", use_container_width=True, type="primary",
+            )
+
+        if _submit:
+            # Validaciones
+            _errors = []
+            if not _new_username or not _new_username.strip():
+                _errors.append("Nombre de usuario es obligatorio")
+            elif not _new_username.replace("_", "").isalnum():
+                _errors.append("Usuario solo puede tener letras, números y guion bajo")
+            if not _new_name or not _new_name.strip():
+                _errors.append("Nombre completo es obligatorio")
+            if not _new_password:
+                _errors.append("Contraseña es obligatoria")
+            elif len(_new_password) < 6:
+                _errors.append("Contraseña debe tener al menos 6 caracteres")
+            elif _new_password != _new_password2:
+                _errors.append("Las contraseñas no coinciden")
+
+            if _errors:
+                for _err in _errors:
+                    st.error(f"❌ {_err}")
+            else:
+                # Generar hash bcrypt
+                try:
+                    import bcrypt
+                    _hashed = bcrypt.hashpw(
+                        _new_password.encode(), bcrypt.gensalt()
+                    ).decode()
+
+                    _username_clean = _new_username.strip().lower()
+                    _exists = _username_clean in (
+                        st.secrets.get("auth", {})
+                        .get("credentials", {})
+                        .get("usernames", {})
+                    )
+
+                    if _exists:
+                        st.warning(
+                            f"⚠️ El usuario **{_username_clean}** ya existe en Secrets. "
+                            "El bloque de abajo lo ACTUALIZARÁ. Asegúrate de **reemplazar** "
+                            "el bloque viejo (no de duplicarlo)."
+                        )
+                    else:
+                        st.success(
+                            f"✅ Credenciales generadas para usuario **{_username_clean}**. "
+                            "Copia el bloque de abajo y pégalo en Streamlit Cloud Secrets."
+                        )
+
+                    # TOML snippet listo para copiar
+                    _toml = (
+                        f'[auth.credentials.usernames.{_username_clean}]\n'
+                        f'name     = "{_new_name.strip()}"\n'
+                        f'email    = "{_new_email.strip()}"\n'
+                        f'role     = "{_new_role}"\n'
+                        f'password = "{_hashed}"\n'
+                    )
+
+                    st.code(_toml, language="toml")
+
+                    st.info(
+                        "📋 Click en el icono de copiar (arriba a la derecha del bloque "
+                        "azul) y pega en: Streamlit Cloud → tu app → Settings → "
+                        "Secrets → al final del archivo → Save."
+                    )
+
+                except ImportError:
+                    st.error("❌ Falta el paquete `bcrypt`")
+                except Exception as _e:
+                    st.error(f"Error generando credenciales: {_e}")
+
+        st.divider()
+
+        # ── Eliminar usuario ───────────────────────────────────────────
+        sec("Eliminar usuario", "🗑️")
+
+        try:
+            _existing_users = list(
+                st.secrets["auth"]["credentials"]["usernames"].keys()
+            )
+        except Exception:
+            _existing_users = []
+
+        if not _existing_users:
+            st.info("No hay usuarios registrados.")
+        else:
+            _to_delete = st.selectbox(
+                "Selecciona el usuario a eliminar",
+                ["—"] + _existing_users,
+                key="del_user_sel",
+            )
+            if _to_delete and _to_delete != "—":
+                if _to_delete == USER["username"]:
+                    st.error(
+                        "❌ No puedes eliminarte a ti mismo. Pide a otro admin "
+                        "que lo haga, o cambia el rol primero."
+                    )
+                else:
+                    st.warning(
+                        f"⚠️ Para eliminar al usuario **{_to_delete}**:\n\n"
+                        "1. Ve a Streamlit Cloud → Settings → Secrets\n"
+                        f"2. Busca el bloque que empieza con "
+                        f"`[auth.credentials.usernames.{_to_delete}]`\n"
+                        "3. Borra esas 5 líneas (la cabecera + las 4 propiedades)\n"
+                        "4. Click Save → la app reinicia y el usuario ya no podrá ingresar"
+                    )
+
+        st.divider()
+
+        # ── Cambiar contraseña de un usuario existente ─────────────────
+        sec("Resetear contraseña", "🔑")
+
+        with st.form("form_reset_pwd", clear_on_submit=False):
+            _r1, _r2 = st.columns(2)
+            with _r1:
+                _reset_user = st.selectbox(
+                    "Usuario",
+                    _existing_users or ["—"],
+                    key="rst_user",
+                )
+            with _r2:
+                _reset_pwd = st.text_input(
+                    "Nueva contraseña",
+                    type="password",
+                    placeholder="Mín 6 caracteres",
+                    key="rst_pwd",
+                )
+            _reset_submit = st.form_submit_button(
+                "🔑 Generar nueva contraseña", use_container_width=True,
+            )
+
+        if _reset_submit:
+            if not _reset_pwd or len(_reset_pwd) < 6:
+                st.error("❌ Contraseña debe tener al menos 6 caracteres")
+            else:
+                try:
+                    import bcrypt
+                    _new_hash = bcrypt.hashpw(
+                        _reset_pwd.encode(), bcrypt.gensalt()
+                    ).decode()
+                    st.success(
+                        f"✅ Nueva contraseña generada para **{_reset_user}**. "
+                        "Reemplaza SOLO la línea `password` del bloque existente:"
+                    )
+                    st.code(f'password = "{_new_hash}"', language="toml")
+                    st.info(
+                        f"📋 Busca el bloque `[auth.credentials.usernames.{_reset_user}]` "
+                        "en Secrets y reemplaza solo esa línea `password = ...` por la nueva."
+                    )
+                except Exception as _e:
+                    st.error(f"Error: {_e}")
 
 
 # ══ TAB 6 — INFORMACIÓN ════════════════════════════════════════════════════
