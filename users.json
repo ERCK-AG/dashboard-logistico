@@ -1,0 +1,22 @@
+{
+  "users": {
+    "admin": {
+      "name": "Erick Aguirre",
+      "email": "benjaminerick35@gmail.com",
+      "role": "admin",
+      "password": "$2b$12$sl/JWK70JkW2jQaFTxbCF.xj5QoTiRfs5lRkRQTZcCSbiGfOEDO5e"
+    },
+    "operador": {
+      "name": "Operador Logístico",
+      "email": "",
+      "role": "operador",
+      "password": "$2b$12$XrEPWVZIcIRWWe2D887oUew5ZXpkuzrNA0p/EqLEujAP4ABrflFR2"
+    },
+    "consulta": {
+      "name": "Usuario Consulta",
+      "email": "",
+      "role": "viewer",
+      "password": "$2b$12$MwTPSJoGwhataHU3RPlnUuGYS/fYua8FS/EUgjgi6Fs6XQPlwvaR6"
+    }
+  }
+}

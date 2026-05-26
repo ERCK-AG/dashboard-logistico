@@ -1339,22 +1339,26 @@ if tab_users is not None and _IS_ADMIN:
     with tab_users:
         sec("Gestión de Usuarios", "👥")
 
-        st.markdown(
-            "<div style='background:#EAF5EE;border-left:4px solid #1A7A3C;"
-            "padding:10px 14px;border-radius:6px;margin-bottom:14px;font-size:.88rem'>"
-            "<b>💡 Cómo funciona:</b><br>"
-            "1. Llena el formulario y haz click en <b>Generar credenciales</b><br>"
-            "2. Copia el bloque TOML que aparece<br>"
-            "3. Ve a <b>Streamlit Cloud → Settings → Secrets</b>, pega el bloque al final<br>"
-            "4. Click <b>Save</b> — la app reinicia y el nuevo usuario podrá ingresar"
-            "</div>",
-            unsafe_allow_html=True,
-        )
+        from modules import user_store as _us_status
+        _auto_mode = _us_status.is_github_configured()
+        if _auto_mode:
+            st.success(
+                "🤖 **Modo automático activo** — Los usuarios se crean, "
+                "modifican y eliminan directamente. Cada cambio se commitea "
+                "a GitHub y Streamlit Cloud redespliega la app (~1 min)."
+            )
+        else:
+            st.info(
+                "📝 **Modo manual** — Configura un GitHub Personal Access "
+                "Token en Secrets para activar el modo automático. Mientras "
+                "tanto, los cambios deben pegarse manualmente en Secrets."
+            )
 
         # ── Lista de usuarios actuales ─────────────────────────────────
         sec("Usuarios actuales", "📋")
         try:
-            _current_users = st.secrets["auth"]["credentials"]["usernames"]
+            from modules import user_store as _us_list
+            _current_users = _us_list.get_all_users()
             _users_rows = []
             for _u, _data in _current_users.items():
                 _role = _data.get("role", "viewer")
@@ -1443,48 +1447,46 @@ if tab_users is not None and _IS_ADMIN:
                 for _err in _errors:
                     st.error(f"❌ {_err}")
             else:
-                # Generar hash bcrypt
                 try:
                     import bcrypt
+                    from modules import user_store
+
                     _hashed = bcrypt.hashpw(
                         _new_password.encode(), bcrypt.gensalt()
                     ).decode()
-
                     _username_clean = _new_username.strip().lower()
-                    _exists = _username_clean in (
-                        st.secrets.get("auth", {})
-                        .get("credentials", {})
-                        .get("usernames", {})
+
+                    # ── Auto-commit via GitHub API ─────────────────────
+                    _ok, _msg = user_store.add_or_update_user(
+                        username=_username_clean,
+                        name=_new_name.strip(),
+                        email=_new_email.strip(),
+                        role=_new_role,
+                        hashed_password=_hashed,
                     )
 
-                    if _exists:
-                        st.warning(
-                            f"⚠️ El usuario **{_username_clean}** ya existe en Secrets. "
-                            "El bloque de abajo lo ACTUALIZARÁ. Asegúrate de **reemplazar** "
-                            "el bloque viejo (no de duplicarlo)."
+                    if _ok:
+                        st.success(_msg)
+                        st.info(
+                            "⏱️ Espera ~1 minuto y luego refresca esta página. "
+                            "El nuevo usuario ya podrá ingresar."
                         )
                     else:
-                        st.success(
-                            f"✅ Credenciales generadas para usuario **{_username_clean}**. "
-                            "Copia el bloque de abajo y pégalo en Streamlit Cloud Secrets."
+                        # GitHub no configurado — mostrar TOML para fallback manual
+                        st.warning(_msg)
+                        st.markdown("---")
+                        st.markdown(
+                            "**📋 Modo manual:** copia este bloque y pégalo en "
+                            "Streamlit Cloud → Settings → Secrets:"
                         )
-
-                    # TOML snippet listo para copiar
-                    _toml = (
-                        f'[auth.credentials.usernames.{_username_clean}]\n'
-                        f'name     = "{_new_name.strip()}"\n'
-                        f'email    = "{_new_email.strip()}"\n'
-                        f'role     = "{_new_role}"\n'
-                        f'password = "{_hashed}"\n'
-                    )
-
-                    st.code(_toml, language="toml")
-
-                    st.info(
-                        "📋 Click en el icono de copiar (arriba a la derecha del bloque "
-                        "azul) y pega en: Streamlit Cloud → tu app → Settings → "
-                        "Secrets → al final del archivo → Save."
-                    )
+                        _toml = (
+                            f'[auth.credentials.usernames.{_username_clean}]\n'
+                            f'name     = "{_new_name.strip()}"\n'
+                            f'email    = "{_new_email.strip()}"\n'
+                            f'role     = "{_new_role}"\n'
+                            f'password = "{_hashed}"\n'
+                        )
+                        st.code(_toml, language="toml")
 
                 except ImportError:
                     st.error("❌ Falta el paquete `bcrypt`")
@@ -1503,6 +1505,10 @@ if tab_users is not None and _IS_ADMIN:
         except Exception:
             _existing_users = []
 
+        # Lista directa de usuarios desde user_store (refleja el estado real)
+        from modules import user_store as _us
+        _existing_users = list(_us.get_all_users().keys())
+
         if not _existing_users:
             st.info("No hay usuarios registrados.")
         else:
@@ -1518,14 +1524,19 @@ if tab_users is not None and _IS_ADMIN:
                         "que lo haga, o cambia el rol primero."
                     )
                 else:
-                    st.warning(
-                        f"⚠️ Para eliminar al usuario **{_to_delete}**:\n\n"
-                        "1. Ve a Streamlit Cloud → Settings → Secrets\n"
-                        f"2. Busca el bloque que empieza con "
-                        f"`[auth.credentials.usernames.{_to_delete}]`\n"
-                        "3. Borra esas 5 líneas (la cabecera + las 4 propiedades)\n"
-                        "4. Click Save → la app reinicia y el usuario ya no podrá ingresar"
+                    _confirm = st.checkbox(
+                        f"Sí, eliminar definitivamente al usuario **{_to_delete}**",
+                        key="del_user_confirm",
                     )
+                    if _confirm and st.button(
+                        "🗑️ ELIMINAR USUARIO", type="primary", key="btn_del_user",
+                    ):
+                        _ok_d, _msg_d = _us.remove_user(_to_delete)
+                        if _ok_d:
+                            st.success(_msg_d)
+                            st.info("⏱️ Espera ~1 minuto y refresca la página.")
+                        else:
+                            st.warning(_msg_d)
 
         st.divider()
 
@@ -1552,23 +1563,37 @@ if tab_users is not None and _IS_ADMIN:
             )
 
         if _reset_submit:
-            if not _reset_pwd or len(_reset_pwd) < 6:
+            if _reset_user == "—" or not _reset_user:
+                st.error("❌ Selecciona un usuario.")
+            elif not _reset_pwd or len(_reset_pwd) < 6:
                 st.error("❌ Contraseña debe tener al menos 6 caracteres")
             else:
                 try:
                     import bcrypt
+                    from modules import user_store as _us2
                     _new_hash = bcrypt.hashpw(
                         _reset_pwd.encode(), bcrypt.gensalt()
                     ).decode()
-                    st.success(
-                        f"✅ Nueva contraseña generada para **{_reset_user}**. "
-                        "Reemplaza SOLO la línea `password` del bloque existente:"
+
+                    # Mantener los demás datos del usuario
+                    _existing_data = _us2.get_all_users().get(_reset_user, {})
+                    _ok_r, _msg_r = _us2.add_or_update_user(
+                        username=_reset_user,
+                        name=_existing_data.get("name", _reset_user),
+                        email=_existing_data.get("email", ""),
+                        role=_existing_data.get("role", "viewer"),
+                        hashed_password=_new_hash,
                     )
-                    st.code(f'password = "{_new_hash}"', language="toml")
-                    st.info(
-                        f"📋 Busca el bloque `[auth.credentials.usernames.{_reset_user}]` "
-                        "en Secrets y reemplaza solo esa línea `password = ...` por la nueva."
-                    )
+                    if _ok_r:
+                        st.success(_msg_r)
+                        st.info("⏱️ Espera ~1 minuto y refresca la página.")
+                    else:
+                        st.warning(_msg_r)
+                        st.markdown(
+                            "**📋 Modo manual:** reemplaza la línea `password` del "
+                            f"bloque `[auth.credentials.usernames.{_reset_user}]` en Secrets:"
+                        )
+                        st.code(f'password = "{_new_hash}"', language="toml")
                 except Exception as _e:
                     st.error(f"Error: {_e}")
 

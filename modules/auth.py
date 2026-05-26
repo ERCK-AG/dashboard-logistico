@@ -24,15 +24,19 @@ import streamlit as st
 # ---------------------------------------------------------------------------
 
 def _get_credentials_dict() -> dict:
-    """Construye el dict de credenciales para streamlit-authenticator desde secrets."""
-    try:
-        users_secret = st.secrets["auth"]["credentials"]["usernames"]
-    except (KeyError, FileNotFoundError):
+    """
+    Construye el dict de credenciales para streamlit-authenticator.
+    Prioridad:
+      1. users.json (gestionable desde la UI, auto-commit via GitHub API)
+      2. st.secrets (config inicial / fallback)
+    """
+    from modules import user_store
+    users = user_store.get_all_users()
+    if not users:
         return {"usernames": {}}
 
-    # Streamlit secrets es un AttrDict — convertir a dict normal
     usernames: dict = {}
-    for username, user_data in users_secret.items():
+    for username, user_data in users.items():
         usernames[username] = {
             "name":     user_data.get("name", username),
             "email":    user_data.get("email", ""),
