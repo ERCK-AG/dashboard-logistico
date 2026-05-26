@@ -17,6 +17,30 @@
       "email": "",
       "role": "viewer",
       "password": "$2b$12$MwTPSJoGwhataHU3RPlnUuGYS/fYua8FS/EUgjgi6Fs6XQPlwvaR6"
+    },
+    "alexander_eras": {
+      "name": "Alexander Eras (CNT EP)",
+      "email": "",
+      "role": "viewer",
+      "password": "$2b$12$4Eve3k8/rxKXzZwUye1N9.9qlds3u58Tf6IOVqWIbpUYRX3AV7bYC"
+    },
+    "mario_cadena": {
+      "name": "Mario Cadena (CNT EP)",
+      "email": "",
+      "role": "viewer",
+      "password": "$2b$12$bohpYImp2B5/TtVrl1J2we274y8aEfsffAytdJyMlikj2fBpbGf8O"
+    },
+    "fredda_zabala": {
+      "name": "Fredda Zabala (LogikTel)",
+      "email": "",
+      "role": "operador",
+      "password": "$2b$12$F1MMjtFr1hVn.N1Ke5nHC.QXW4BwRT/XQoTpOSzTohR/tsvZN0wwG"
+    },
+    "richard_manguia": {
+      "name": "Richard Manguia (LogikTel)",
+      "email": "",
+      "role": "operador",
+      "password": "$2b$12$jTf3SY09jIXiR0Fli.4sE.tFL2CqyBrsz3zQDDtlhBqecaddwGS7W"
     }
   }
 }
