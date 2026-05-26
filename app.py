@@ -485,15 +485,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Errores y advertencias
+# Errores críticos — detienen la app si los datos no se pueden cargar
 if err_list:
     for e in err_list: st.error(f"❌ {e}")
     st.stop()
-for w in warn_list:
-    st.warning(f"⚠️ {w}")
 if df.empty:
     st.warning("⚠️ Sin datos con los filtros aplicados.")
     st.stop()
+# NOTA: las advertencias (warn_list) NO se muestran aquí.
+# Se muestran al FINAL de la página, justo antes del footer, para no
+# saturar la parte superior del dashboard.
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -2062,6 +2063,15 @@ for _sp_tab, _sp_sheet_name in zip(_sp_tabs, _sp_names):
                 f"{_sp_fname_base}.xlsx", XLSX_MIME,
                 key=f"dl_sp_{_sp_sheet_name}",
             )
+
+
+# ── Advertencias del sistema (movidas al final para no saturar arriba) ────
+if warn_list:
+    st.divider()
+    with st.expander("ℹ️ Información del sistema y advertencias",
+                     expanded=False):
+        for w in warn_list:
+            st.warning(f"⚠️ {w}")
 
 
 # ── Footer ─────────────────────────────────────────────────────────────────
