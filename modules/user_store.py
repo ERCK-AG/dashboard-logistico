@@ -98,6 +98,67 @@ def is_github_configured() -> bool:
     return _get_github_config() is not None
 
 
+# ---------------------------------------------------------------------------
+# Funciones públicas para que OTROS módulos (overrides) usen GitHub
+# ---------------------------------------------------------------------------
+
+def github_commit_binary(path: str, content_bytes: bytes,
+                         commit_msg: str) -> tuple[bool, str]:
+    """
+    Commitea un archivo binario (como xlsx) al repo de GitHub.
+    Retorna (success, message).
+    """
+    import requests
+    cfg = _get_github_config()
+    if cfg is None:
+        return False, "GitHub no configurado"
+
+    try:
+        # Obtener sha si el archivo existe
+        url = (f"https://api.github.com/repos/{cfg['owner']}/{cfg['repo']}"
+               f"/contents/{path}")
+        params = {"ref": cfg["branch"]}
+        resp = requests.get(url, headers=_gh_headers(cfg["token"]),
+                            params=params, timeout=20)
+        sha = resp.json().get("sha") if resp.status_code == 200 else None
+
+        # PUT con contenido base64
+        body = {
+            "message": commit_msg,
+            "content": base64.b64encode(content_bytes).decode("utf-8"),
+            "branch":  cfg["branch"],
+        }
+        if sha:
+            body["sha"] = sha
+        resp = requests.put(url, headers=_gh_headers(cfg["token"]),
+                            json=body, timeout=30)
+        resp.raise_for_status()
+        return True, "OK"
+    except Exception as e:
+        return False, f"Error commit binario: {e}"
+
+
+def github_download_binary(path: str) -> Optional[bytes]:
+    """Descarga un archivo binario desde el repo de GitHub. Retorna bytes o None."""
+    import requests
+    cfg = _get_github_config()
+    if cfg is None:
+        return None
+    try:
+        url = (f"https://api.github.com/repos/{cfg['owner']}/{cfg['repo']}"
+               f"/contents/{path}")
+        params = {"ref": cfg["branch"]}
+        resp = requests.get(url, headers=_gh_headers(cfg["token"]),
+                            params=params, timeout=20)
+        if resp.status_code == 404:
+            return None
+        resp.raise_for_status()
+        content_b64 = resp.json().get("content", "")
+        return base64.b64decode(content_b64)
+    except Exception:
+        return None
+
+
 def _gh_headers(token: str) -> dict:
     return {
         "Authorization": f"token {token}",

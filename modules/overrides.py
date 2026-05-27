@@ -62,9 +62,28 @@ MOTIVOS_ANULACION = [
 # ---------------------------------------------------------------------------
 
 def _ensure_file_exists() -> None:
-    """Crea overrides.xlsx con las hojas vacías si no existe."""
+    """
+    Asegura que overrides.xlsx existe localmente.
+    Prioridad:
+      1. Si ya existe local → no hace nada
+      2. Intenta descargar desde GitHub (si PAT está configurado)
+      3. Si no, crea uno vacío
+    """
     if OVERRIDES_FILE.exists():
         return
+
+    # Intentar descargar desde GitHub
+    try:
+        from modules import user_store
+        if user_store.is_github_configured():
+            content_bytes = user_store.github_download_binary("overrides.xlsx")
+            if content_bytes:
+                OVERRIDES_FILE.write_bytes(content_bytes)
+                return
+    except Exception:
+        pass
+
+    # Crear archivo vacío
     with pd.ExcelWriter(OVERRIDES_FILE, engine="openpyxl") as writer:
         pd.DataFrame(columns=EMPATES_COLS).to_excel(
             writer, sheet_name="EMPATES", index=False
@@ -72,6 +91,22 @@ def _ensure_file_exists() -> None:
         pd.DataFrame(columns=ANULADAS_COLS).to_excel(
             writer, sheet_name="ANULADAS", index=False
         )
+
+
+def _commit_to_github(commit_msg: str) -> tuple[bool, str]:
+    """Commitea overrides.xlsx a GitHub. Si no hay PAT, retorna (False, mensaje)."""
+    try:
+        from modules import user_store
+        if not user_store.is_github_configured():
+            return False, "Sin PAT — los empates solo se guardan localmente y se perderán en el próximo redeploy."
+        if not OVERRIDES_FILE.exists():
+            return False, "No existe el archivo local."
+        content_bytes = OVERRIDES_FILE.read_bytes()
+        return user_store.github_commit_binary(
+            "overrides.xlsx", content_bytes, commit_msg
+        )
+    except Exception as e:
+        return False, f"Error: {e}"
 
 
 def load_overrides() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -99,11 +134,20 @@ def load_overrides() -> tuple[pd.DataFrame, pd.DataFrame]:
     return empates, anuladas
 
 
-def _save_overrides(empates: pd.DataFrame, anuladas: pd.DataFrame) -> None:
-    """Escribe ambas hojas al archivo."""
+def _save_overrides(empates: pd.DataFrame, anuladas: pd.DataFrame,
+                    commit_msg: Optional[str] = None) -> tuple[bool, str]:
+    """
+    Escribe ambas hojas al archivo local.
+    Si commit_msg está dado y GitHub está configurado, también commitea.
+    Retorna (github_ok, github_msg) — útil para mostrar feedback al usuario.
+    """
     with pd.ExcelWriter(OVERRIDES_FILE, engine="openpyxl") as writer:
         empates[EMPATES_COLS].to_excel(writer, sheet_name="EMPATES", index=False)
         anuladas[ANULADAS_COLS].to_excel(writer, sheet_name="ANULADAS", index=False)
+
+    if commit_msg:
+        return _commit_to_github(commit_msg)
+    return True, "Guardado local"
 
 
 # ---------------------------------------------------------------------------
@@ -253,8 +297,14 @@ def add_empate(
         "Estado":        "ACTIVA",
     }
     empates_df = pd.concat([empates_df, pd.DataFrame([nueva_fila])], ignore_index=True)
-    _save_overrides(empates_df, anuladas_df)
-    return True, f"✅ Empate registrado: {guia_old} → {guia_new}"
+    gh_ok, gh_msg = _save_overrides(
+        empates_df, anuladas_df,
+        commit_msg=f"Empate: {guia_old} -> {guia_new}",
+    )
+    base_msg = f"✅ Empate registrado: {guia_old} → {guia_new}"
+    if gh_ok:
+        return True, base_msg + " (guardado en GitHub ✅)"
+    return True, base_msg + f" ⚠️ {gh_msg}"
 
 
 def add_anulacion(
@@ -290,8 +340,14 @@ def add_anulacion(
         "Estado":          "ACTIVA",
     }
     anuladas_df = pd.concat([anuladas_df, pd.DataFrame([nueva_fila])], ignore_index=True)
-    _save_overrides(empates_df, anuladas_df)
-    return True, f"✅ Guía {guia} anulada."
+    gh_ok, gh_msg = _save_overrides(
+        empates_df, anuladas_df,
+        commit_msg=f"Anular guía: {guia}",
+    )
+    base_msg = f"✅ Guía {guia} anulada."
+    if gh_ok:
+        return True, base_msg + " (guardada en GitHub ✅)"
+    return True, base_msg + f" ⚠️ {gh_msg}"
 
 
 def revert(tipo: str, idx: int) -> tuple[bool, str]:
@@ -311,8 +367,13 @@ def revert(tipo: str, idx: int) -> tuple[bool, str]:
     else:
         return False, "❌ Tipo desconocido."
 
-    _save_overrides(empates_df, anuladas_df)
-    return True, msg
+    gh_ok, gh_msg = _save_overrides(
+        empates_df, anuladas_df,
+        commit_msg=f"Revertir {tipo} idx={idx}",
+    )
+    if gh_ok:
+        return True, msg + " (sincronizado a GitHub ✅)"
+    return True, msg + f" ⚠️ {gh_msg}"
 
 
 # ---------------------------------------------------------------------------
