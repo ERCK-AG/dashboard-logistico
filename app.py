@@ -259,7 +259,11 @@ if df_raw is not None and not df_raw.empty and specialty_dfs:
                 if _g and pd.notna(_p) and str(_p).strip() not in ("", "nan"):
                     # No sobrescribir si ya existe (GUIA 1 tiene prioridad sobre GUIA 2/3)
                     if _g not in _pedido_lookup:
-                        _pedido_lookup[_g] = str(_p).strip()
+                        _pedido_str = str(_p).strip()
+                        # Quitar ".0" final si el pedido es un entero leído como float
+                        if _pedido_str.endswith(".0"):
+                            _pedido_str = _pedido_str[:-2]
+                        _pedido_lookup[_g] = _pedido_str
 
     # Agregar columna _n_pedido al df_raw — "NA" si no se encontró el pedido
     _col_guia_main = col_map.get("guia") if col_map else None
@@ -356,8 +360,12 @@ with st.sidebar:
 
     # Búsqueda
     st.markdown("**🔍 BÚSQUEDA**")
-    search_guia = st.text_input("N° Guía / Pedido", placeholder="Ej: 00123456",
-                                label_visibility="collapsed")
+    search_guia = st.text_input(
+        "N° Guía o N° Pedido",
+        placeholder="Ej: WYB174282285 o 4700317515",
+        help="Busca por Guía o N° de Pedido. Ignora los filtros del sidebar.",
+        label_visibility="collapsed",
+    )
     st.divider()
 
     # Filtros
