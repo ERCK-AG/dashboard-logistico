@@ -30,6 +30,22 @@ sys.path.insert(0, str(ROOT_DIR))
 from modules import auth
 USER = auth.require_login()
 
+# ── AUTO-REFRESH cada 2 horas ──────────────────────────────────────────
+# Streamlit no auto-recarga páginas — sin esto, los datos solo se actualizan
+# cuando el usuario interactúa con la app. Con este componente la app se
+# refresca automáticamente cada N milisegundos, sin perder el estado.
+try:
+    from streamlit_autorefresh import st_autorefresh
+    # 2 horas = 2 * 60 * 60 * 1000 = 7,200,000 ms
+    st_autorefresh(
+        interval=2 * 60 * 60 * 1000,
+        limit=None,                  # repetir indefinidamente
+        key="auto_refresh_2h",
+    )
+except ImportError:
+    # Fallback si el paquete no está instalado (modo local sin la dependencia)
+    pass
+
 from modules.data_loader import get_data_with_refresh, find_latest_excel
 from modules.kpis import calculate_kpis
 from modules.charts import (
@@ -349,9 +365,11 @@ with st.sidebar:
         )
     st.session_state["umbral_alerta_h"]  = umbral_alerta_h
     st.session_state["umbral_critico_h"] = umbral_critico_h
-    if st.button("🔄 Refrescar datos", use_container_width=True):
+    if st.button("🔄 Refrescar datos ahora", use_container_width=True,
+                 help="Descarga la última versión del Excel desde OneDrive"):
         st.cache_data.clear()
         st.rerun()
+    st.caption("⏱️ Auto-refresh cada 2 horas")
     st.divider()
 
     if df_raw is None or df_raw.empty:
@@ -465,9 +483,22 @@ with st.sidebar:
 # HEADER
 # ═══════════════════════════════════════════════════════════════════════════
 latest_file = find_latest_excel(ROOT_DIR)
-fname = latest_file.name if latest_file else "—"
-fdate = (datetime.fromtimestamp(latest_file.stat().st_mtime).strftime("%d/%m/%Y %H:%M")
-         if latest_file else "—")
+# Si la fuente es OneDrive (no hay archivo local), mostramos cuándo se cargó
+# el dashboard. Si es archivo local, mostramos la fecha de modificación.
+try:
+    _excel_url_active = bool(st.secrets["onedrive"]["excel_url"].strip())
+except Exception:
+    _excel_url_active = False
+
+if _excel_url_active:
+    fname = "CONSOLIDADO JEFATURA LOGISTICA.xlsx (OneDrive)"
+    fdate = datetime.now().strftime("%d/%m/%Y %H:%M") + " · cargado ahora"
+elif latest_file:
+    fname = latest_file.name
+    fdate = datetime.fromtimestamp(latest_file.stat().st_mtime).strftime("%d/%m/%Y %H:%M")
+else:
+    fname = "—"
+    fdate = "—"
 
 logo_html = ""
 for lp in [ASSETS_DIR / "logo_empresa.png", ASSETS_DIR / "logo_cnt.png"]:
