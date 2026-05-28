@@ -1815,6 +1815,29 @@ for _sp_tab, _sp_sheet_name in zip(_sp_tabs, _sp_names):
             _col_g1_f   = sv.find_col(_sp_raw, "GUIA 1", "guia 1")
 
             _df_log = _sp_raw.copy()
+
+            # Buscador por N° de guía o pedido (busca en GUIA 1/2/3 y PEDIDO)
+            _search_log = st.text_input(
+                "🔍 Buscar por N° de guía o pedido",
+                placeholder="Ej: WYB174385769 o 4700316725",
+                key=f"sp_search_{_sp_sheet_name}",
+            )
+            if _search_log and _search_log.strip():
+                _q = _search_log.strip()
+                _search_cols = [
+                    sv.find_col(_sp_raw, "GUIA 1", "guia 1"),
+                    sv.find_col(_sp_raw, "GUIA 2", "guia 2"),
+                    sv.find_col(_sp_raw, "GUIA 3", "guia 3"),
+                    sv.find_col(_sp_raw, "PEDIDO", "pedido"),
+                ]
+                _mask = pd.Series(False, index=_df_log.index)
+                for _sc in _search_cols:
+                    if _sc and _sc in _df_log.columns:
+                        _mask = _mask | _df_log[_sc].astype(str).str.strip().str.contains(
+                            _q, case=False, na=False, regex=False
+                        )
+                _df_log = _df_log[_mask]
+                st.caption(f"🔍 {len(_df_log):,} resultado(s) para «{_q}»")
             _lf1, _lf2, _lf3 = st.columns([2, 2, 2])
             with _lf1:
                 if _col_orig_f and _col_orig_f in _sp_raw.columns:
