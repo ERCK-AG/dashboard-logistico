@@ -247,8 +247,11 @@ for k, v in [("umbral_alerta_h", 24), ("umbral_critico_h", 72)]:
         st.session_state[k] = v
 
 # ── Carga de datos ─────────────────────────────────────────────────────────
+# df_raw  = data CON overrides aplicados (para reportes/KPIs)
+# df_full = data COMPLETA sin overrides (para que la búsqueda encuentre
+#           guías empatadas/anuladas)
 with st.spinner("⏳ Cargando datos desde Excel…"):
-    df_raw, col_map, specialty_dfs, warn_list, err_list = get_data_with_refresh(ROOT_DIR)
+    df_raw, col_map, specialty_dfs, warn_list, err_list, df_full = get_data_with_refresh(ROOT_DIR)
 
 # Guarda defensiva: si el caché guardó el formato antiguo (2-tuplas en lugar de 3),
 # lo limpia automáticamente y recarga sin interrumpir al usuario.
@@ -256,7 +259,11 @@ if specialty_dfs:
     _first_val = next(iter(specialty_dfs.values()))
     if not isinstance(_first_val, tuple) or len(_first_val) != 3:
         st.cache_data.clear()
-        df_raw, col_map, specialty_dfs, warn_list, err_list = get_data_with_refresh(ROOT_DIR)
+        df_raw, col_map, specialty_dfs, warn_list, err_list, df_full = get_data_with_refresh(ROOT_DIR)
+
+# Fallback: si df_full quedó None (error de carga), usar df_raw
+if df_full is None:
+    df_full = df_raw
 
 
 # ── Enriquecimiento (N° Pedido + Agencia) ──────────────────────────────────
@@ -870,12 +877,12 @@ with tab1:
             )
 
         # ── Aplicar filtros ────────────────────────────────────────────────
-        # IMPORTANTE: si hay búsqueda activa, partimos de df_raw (ignoramos
-        # filtros del sidebar como fecha, provincia, etc.) para que la
-        # búsqueda siempre encuentre la guía. Los filtros del tab (hoja,
-        # estado) sí se respetan.
+        # IMPORTANTE: si hay búsqueda activa, partimos de df_full (data COMPLETA
+        # sin overrides ni filtros del sidebar) para que la búsqueda SIEMPRE
+        # encuentre la guía, incluso si fue empatada o anulada.
+        # Los filtros del tab (hoja, estado) sí se respetan.
         _search_active = bool(search_guia and search_guia.strip())
-        df_g = df_raw.copy() if _search_active else df.copy()
+        df_g = df_full.copy() if _search_active else df.copy()
 
         # 1) Filtro por hoja de especialidad
         if hoja_g != "— Todos los pedidos —":
@@ -1174,10 +1181,10 @@ with tab4:
 # ══ TAB 5 — TABLA DETALLE ══════════════════════════════════════════════════
 with tab5:
     sec("Detalle Completo de Pedidos", "📋")
-    # Si hay búsqueda activa, ignorar filtros del sidebar para que siempre
-    # encuentre la guía.
+    # Si hay búsqueda activa, usar df_full (data completa sin overrides) para
+    # encontrar la guía aunque esté empatada/anulada o fuera de los filtros.
     _search_active_t5 = bool(search_guia and search_guia.strip())
-    _df_for_tbl = df_raw if _search_active_t5 else df
+    _df_for_tbl = df_full if _search_active_t5 else df
     tbl = build_table_df(_df_for_tbl, col_map, search_guia=search_guia)
     if _search_active_t5:
         st.info(

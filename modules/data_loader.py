@@ -390,7 +390,9 @@ def get_data_with_refresh(folder: Optional[Path] = None):
     cambios surtan efecto inmediatamente sin necesidad de limpiar caché.
 
     Retorna:
-        df_main, col_map, specialty_dfs, warn_list, err_list
+        df_main, col_map, specialty_dfs, warn_list, err_list, df_full
+        donde df_full es la data COMPLETA (antes de overrides) — se usa para
+        que la búsqueda pueda encontrar guías empatadas/anuladas.
     """
     excel_url = _get_excel_url_from_secrets()
     latest: Optional[Path] = None
@@ -402,7 +404,7 @@ def get_data_with_refresh(folder: Optional[Path] = None):
             return None, None, {}, [], [
                 "No se pudo descargar el Excel desde OneDrive. "
                 "Verifica que el link sea válido y de tipo 'Cualquiera con el enlace'."
-            ]
+            ], None
         latest = Path(downloaded)
     else:
         # Modo local: buscar archivo en la carpeta
@@ -412,14 +414,18 @@ def get_data_with_refresh(folder: Optional[Path] = None):
                 f"No se encontró ningún archivo Excel en: {folder or ROOT_DIR}\n\n"
                 "💡 Si estás en Streamlit Cloud, configura la URL del Excel "
                 "en Secrets (sección [onedrive], clave `excel_url`)."
-            ]
+            ], None
 
     mtime = get_file_mtime(latest)
     df_main, col_map, specialty, warn_list, err_list = load_all_sheets(str(latest), mtime)
 
+    # Snapshot de la data COMPLETA antes de aplicar overrides — para búsqueda
+    df_full = df_main
+
     # ── Aplicar overrides (empates / anulaciones) ────────────────────────────
     # Se aplica fuera del caché para que las modificaciones del usuario en
     # overrides.xlsx surtan efecto inmediato sin tener que refrescar el caché.
+    # apply_overrides retorna un DataFrame NUEVO, así df_full sigue completo.
     if df_main is not None and not df_main.empty and col_map:
         col_guia = col_map.get("guia")
         if col_guia and col_guia in df_main.columns:
@@ -436,4 +442,4 @@ def get_data_with_refresh(folder: Optional[Path] = None):
                     "fueron reemplazadas por sus guías nuevas."
                 )
 
-    return df_main, col_map, specialty, warn_list, err_list
+    return df_main, col_map, specialty, warn_list, err_list, df_full
