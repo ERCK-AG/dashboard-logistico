@@ -573,6 +573,10 @@ def build_display_table(df: pd.DataFrame, max_rows: int = 2000) -> pd.DataFrame:
             except Exception:
                 pass
 
+    # ── Todo en MAYÚSCULAS ────────────────────────────────────────────────
+    from modules.charts import uppercase_table
+    df2 = uppercase_table(df2)
+
     # ── Índice desde 1 ────────────────────────────────────────────────────
     df2.index = range(1, len(df2) + 1)
     return df2

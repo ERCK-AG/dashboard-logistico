@@ -49,6 +49,20 @@ def _base_layout(title: str = "", height: int = 400) -> dict:
     )
 
 
+def uppercase_table(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Convierte a MAYÚSCULAS todos los valores de texto del DataFrame.
+    Solo afecta strings — números, fechas y nulos se mantienen igual.
+    """
+    out = df.copy()
+    for col in out.columns:
+        if out[col].dtype == object:
+            out[col] = out[col].map(
+                lambda v: v.upper() if isinstance(v, str) else v
+            )
+    return out
+
+
 def _no_data_fig(message: str = "Sin datos suficientes") -> go.Figure:
     fig = go.Figure()
     fig.add_annotation(
@@ -846,7 +860,7 @@ def build_table_df(
                 )
         table = table[mask]
 
-    result = table.head(2000)
+    result = uppercase_table(table.head(2000))
     result.index = range(1, len(result) + 1)
     return result
 
@@ -1542,7 +1556,7 @@ def build_gestion_table_df(
                 "%d/%m/%Y %H:%M"
             )
 
-    result = tbl.head(max_rows)
+    result = uppercase_table(tbl.head(max_rows))
     result.index = range(1, len(result) + 1)
     return result
 
