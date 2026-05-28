@@ -280,6 +280,14 @@ PROVINCE_COORDS: dict[str, dict] = {
     "GALAPAGOS":        {"lat": -0.90,  "lon": -89.61, "capital": "Pto. Baquerizo"},
 }
 
+# Renombrado de valores de estado/detalle para mostrar etiquetas más claras.
+# Clave: valor normalizado (lower + strip). Valor: etiqueta a mostrar.
+# Se aplica tanto a la columna de estado como a la de detalle_estado.
+STATE_RELABEL: dict[str, str] = {
+    "pick up (manual)": "Pendiente Recolección",
+}
+
+
 # Estados considerados "entregado"
 DELIVERED_STATES = {
     "entregado", "entregada", "delivered", "completado", "completada",
@@ -486,6 +494,19 @@ def clean_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Optional[
     estado_col = col_map.get("estado")
     if estado_col and estado_col in df.columns:
         df[estado_col] = df[estado_col].apply(normalize_state)
+
+    # Renombrar etiquetas (ej: "Pick UP (Manual)" → "Pendiente Recolección")
+    # Se aplica a estado y detalle_estado (comparación case-insensitive).
+    def _relabel(value):
+        if pd.isna(value):
+            return value
+        key = str(value).strip().lower()
+        return STATE_RELABEL.get(key, value)
+
+    for _key in ("estado", "detalle_estado"):
+        _col = col_map.get(_key)
+        if _col and _col in df.columns:
+            df[_col] = df[_col].apply(_relabel)
 
     # Calcular tiempos
     df = calculate_time_deltas(df, col_map)
