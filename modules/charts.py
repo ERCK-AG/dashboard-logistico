@@ -1427,6 +1427,7 @@ def build_gestion_table_df(
     search_guia: str = "",
     ascending: bool = False,
     max_rows: int = 2000,
+    entregados_last: bool = False,
 ) -> pd.DataFrame:
     """
     DataFrame formateado para la tabla de tiempos de gestión.
@@ -1480,8 +1481,16 @@ def build_gestion_table_df(
 
     working = df.copy()
 
-    # Sort by gestión time
-    if "_tiempo_gestion_horas" in working.columns:
+    # Ordenamiento
+    if entregados_last and "_entregado" in working.columns and "_tiempo_gestion_horas" in working.columns:
+        # Pendientes primero (_entregado=False), luego entregados.
+        # Dentro de cada grupo: mayor tiempo de gestión arriba.
+        working = working.sort_values(
+            ["_entregado", "_tiempo_gestion_horas"],
+            ascending=[True, ascending],   # entregado asc (False<True), tiempo según flag
+            na_position="last",
+        )
+    elif "_tiempo_gestion_horas" in working.columns:
         working = working.sort_values(
             "_tiempo_gestion_horas", ascending=ascending, na_position="last"
         )

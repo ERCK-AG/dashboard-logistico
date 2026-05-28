@@ -932,8 +932,11 @@ with tab1:
             df_g = df_g[df_g[col_est_g].astype(str) == estado_g]
 
         asc_g = orden_g == "Menor tiempo primero"
+        # entregados_last=True → guías entregadas van al final de la tabla,
+        # las pendientes con mayor tiempo de gestión quedan arriba.
         tbl_g = build_gestion_table_df(df_g, col_map,
-                                       search_guia=search_guia, ascending=asc_g)
+                                       search_guia=search_guia, ascending=asc_g,
+                                       entregados_last=True)
 
         # Indicador de búsqueda activa (los filtros del sidebar se ignoran)
         if _search_active:
