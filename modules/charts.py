@@ -1468,6 +1468,8 @@ def build_gestion_table_df(
     col_nrv    = col_map.get("nro_visitas")
     col_rv1    = col_map.get("resultado_visita1")
     col_pv1    = col_map.get("primera_visita")
+    col_pv2    = col_map.get("segunda_visita")      # SEGUNDA VISITA
+    col_rv2    = col_map.get("resultado_visita2")   # RESULTADO VISITA 2
     col_resp   = col_map.get("responsable")
     # Datos de la persona que recibe + ubicación
     col_destinatario = col_map.get("destinatario")        # DESTINATARIO
@@ -1497,6 +1499,8 @@ def build_gestion_table_df(
         (col_det,          "Detalle Estado"),
         (col_pv1,          "1ª Visita"),
         (col_rv1,          "Resultado 1ª Visita"),
+        (col_pv2,          "2ª Visita"),
+        (col_rv2,          "Resultado 2ª Visita"),
         (col_resp,         "Gestionista"),
     ]
     cols_present = [(c, lbl) for c, lbl in cols_spec if c and c in df.columns]
@@ -1560,7 +1564,7 @@ def build_gestion_table_df(
     tbl.rename(columns=rename_map, inplace=True)
 
     # Format datetime columns
-    for fc_lbl in ["Fecha SS", "Fecha Estado", "1ª Visita"]:
+    for fc_lbl in ["Fecha SS", "Fecha Estado", "1ª Visita", "2ª Visita"]:
         if fc_lbl in tbl.columns:
             tbl[fc_lbl] = pd.to_datetime(tbl[fc_lbl], errors="coerce").dt.strftime(
                 "%d/%m/%Y %H:%M"
