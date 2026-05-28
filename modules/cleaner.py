@@ -72,6 +72,16 @@ COLUMN_MAPPINGS: dict[str, list[str]] = {
         "destinatario", "recipient", "consignee", "nombre destinatario",
         "nombre dest.", "recibe",
     ],
+    "telefono": [
+        "telefonos", "telefono", "teléfono", "teléfonos", "celular",
+        "celulares", "contacto", "telefono destinatario", "tel",
+        "numero telefono", "número teléfono",
+    ],
+    "direccion_entrega": [
+        "direccion de entrega", "dirección de entrega", "direccion entrega",
+        "dirección entrega", "direccion", "dirección", "direccion destino",
+        "dirección destino", "address",
+    ],
     "transportista": [
         "transportista", "carrier", "courier", "empresa transporte",
         "empresa_transporte", "proveedor", "empresa", "operadora",

@@ -1445,25 +1445,32 @@ def build_gestion_table_df(
     col_rv1    = col_map.get("resultado_visita1")
     col_pv1    = col_map.get("primera_visita")
     col_resp   = col_map.get("responsable")
+    # Datos de la persona que recibe + ubicación
+    col_destinatario = col_map.get("destinatario")        # DESTINATARIO
+    col_telefono     = col_map.get("telefono")            # TELEFONOS
+    col_direccion    = col_map.get("direccion_entrega")   # DIRECCION DE ENTREGA
 
     # "_n_pedido" es una columna sintética añadida en app.py por lookup
     # cruzando con las hojas de especialidad (PEDIDO ↔ GUIA 1/2/3).
     col_n_pedido = "_n_pedido" if "_n_pedido" in df.columns else None
 
     cols_spec = [
-        (col_guia,      "Guía"),
-        (col_n_pedido,  "N° Pedido"),
-        (col_pedido,    "Pedido"),
-        (col_orig,      "P. Origen"),
-        (col_dest,      "P. Destino"),
-        (col_estado,    "Estado"),
-        (col_det,       "Detalle Estado"),
-        (col_nrv,       "N° Visitas"),
-        (col_pv1,       "1ª Visita"),
-        (col_rv1,       "Resultado 1ª Visita"),
-        (col_fss,       "Fecha SS"),
-        (col_fest,      "Fecha Estado"),
-        (col_resp,      "Gestionista"),
+        (col_guia,         "Guía"),
+        (col_n_pedido,     "N° Pedido"),
+        (col_pedido,       "Pedido"),
+        (col_orig,         "P. Origen"),
+        (col_dest,         "P. Destino"),
+        (col_estado,       "Estado"),
+        (col_det,          "Detalle Estado"),
+        (col_destinatario, "Recibe (Destinatario)"),
+        (col_telefono,     "Teléfono"),
+        (col_direccion,    "Dirección / Sitio"),
+        (col_nrv,          "N° Visitas"),
+        (col_pv1,          "1ª Visita"),
+        (col_rv1,          "Resultado 1ª Visita"),
+        (col_fss,          "Fecha SS"),
+        (col_fest,         "Fecha Estado"),
+        (col_resp,         "Gestionista"),
     ]
     cols_present = [(c, lbl) for c, lbl in cols_spec if c and c in df.columns]
     real_cols  = [c for c, _ in cols_present]
