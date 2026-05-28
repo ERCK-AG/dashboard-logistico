@@ -807,8 +807,11 @@ with tab1:
             )
 
         st.divider()
-        sec("Top 10 Guías con Mayor Tiempo de Gestión", "🔴")
-        top10_df = build_gestion_table_df(df, col_map, ascending=False, max_rows=10)
+        sec("Top 10 Guías Pendientes con Mayor Tiempo de Gestión", "🔴")
+        st.caption("Excluye guías ya entregadas — solo muestra las que siguen abiertas.")
+        # Excluir las guías ya entregadas: el Top 10 debe resaltar pendientes
+        _df_top = df[df["_entregado"] == False].copy() if "_entregado" in df.columns else df
+        top10_df = build_gestion_table_df(_df_top, col_map, ascending=False, max_rows=10)
         st.dataframe(
             top10_df.style.apply(
                 lambda col: ["background-color:#FDEAEA;color:#922B21" if col.name == "Tiempo"
