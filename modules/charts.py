@@ -1479,23 +1479,24 @@ def build_gestion_table_df(
     col_n_pedido = "_n_pedido" if "_n_pedido" in df.columns else None
     col_agencia  = "_agencia"  if "_agencia"  in df.columns else None
 
+    # Orden por defecto solicitado por el usuario
     cols_spec = [
+        (col_fss,          "Fecha SS"),
         (col_guia,         "Guía"),
         (col_n_pedido,     "N° Pedido"),
         (col_pedido,       "Pedido"),
         (col_orig,         "P. Origen"),
         (col_dest,         "P. Destino"),
         (col_agencia,      "Agencia / Centro"),
-        (col_estado,       "Estado"),
-        (col_det,          "Detalle Estado"),
+        (col_direccion,    "Dirección / Sitio"),
         (col_destinatario, "Recibe (Destinatario)"),
         (col_telefono,     "Teléfono"),
-        (col_direccion,    "Dirección / Sitio"),
         (col_nrv,          "N° Visitas"),
+        (col_fest,         "Fecha Estado"),
+        (col_estado,       "Estado"),
+        (col_det,          "Detalle Estado"),
         (col_pv1,          "1ª Visita"),
         (col_rv1,          "Resultado 1ª Visita"),
-        (col_fss,          "Fecha SS"),
-        (col_fest,         "Fecha Estado"),
         (col_resp,         "Gestionista"),
     ]
     cols_present = [(c, lbl) for c, lbl in cols_spec if c and c in df.columns]
