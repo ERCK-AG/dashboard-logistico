@@ -1450,9 +1450,10 @@ def build_gestion_table_df(
     col_telefono     = col_map.get("telefono")            # TELEFONOS
     col_direccion    = col_map.get("direccion_entrega")   # DIRECCION DE ENTREGA
 
-    # "_n_pedido" es una columna sintética añadida en app.py por lookup
-    # cruzando con las hojas de especialidad (PEDIDO ↔ GUIA 1/2/3).
+    # Columnas sintéticas añadidas en app.py por lookup con hojas de especialidad:
+    #   _n_pedido → N° Pedido    _agencia → nombre de agencia/centro destino
     col_n_pedido = "_n_pedido" if "_n_pedido" in df.columns else None
+    col_agencia  = "_agencia"  if "_agencia"  in df.columns else None
 
     cols_spec = [
         (col_guia,         "Guía"),
@@ -1460,6 +1461,7 @@ def build_gestion_table_df(
         (col_pedido,       "Pedido"),
         (col_orig,         "P. Origen"),
         (col_dest,         "P. Destino"),
+        (col_agencia,      "Agencia / Centro"),
         (col_estado,       "Estado"),
         (col_det,          "Detalle Estado"),
         (col_destinatario, "Recibe (Destinatario)"),
