@@ -220,6 +220,17 @@ def _to_xlsx(df: pd.DataFrame) -> bytes:
     buf.seek(0)
     return buf.getvalue()
 
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _cached_kpis(df: pd.DataFrame, col_map: dict,
+                 umbral_alerta_h: int, umbral_critico_h: int) -> dict:
+    """KPIs cacheados — evita recalcular en cada cambio de tab (mismo df → cache hit)."""
+    return calculate_kpis(
+        df, col_map,
+        umbral_alerta_h=umbral_alerta_h,
+        umbral_critico_h=umbral_critico_h,
+    )
+
 def sec(title: str, icon: str = ""):
     st.markdown(
         f"<div style='display:flex;align-items:center;gap:8px;margin:1.1rem 0 .5rem'>"
@@ -500,7 +511,7 @@ if df.empty:
 # ═══════════════════════════════════════════════════════════════════════════
 # KPIs
 # ═══════════════════════════════════════════════════════════════════════════
-kpis = calculate_kpis(df, col_map, umbral_alerta_h=umbral_alerta_h, umbral_critico_h=umbral_critico_h)
+kpis = _cached_kpis(df, col_map, umbral_alerta_h, umbral_critico_h)
 
 if "_tiempo_gestion_horas" in df.columns:
     _hv = df["_tiempo_gestion_horas"].dropna()

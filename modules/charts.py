@@ -11,6 +11,7 @@ from typing import Optional
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import streamlit as st
 
 from modules.cleaner import PROVINCE_COORDS, _normalize_str
 
@@ -503,17 +504,18 @@ def chart_mapa_ecuador(df: pd.DataFrame, col_map: dict, metric: str = "volumen")
     counts.columns = ["Provincia", "valor"]
 
     # ── Coordenadas ────────────────────────────────────────────────────────
+    # itertuples es ~10x más rápido que iterrows
     rows = []
-    for _, r in counts.iterrows():
-        key   = str(r["Provincia"]).upper().strip()
+    for _r in counts.itertuples(index=False):
+        key   = str(_r.Provincia).upper().strip()
         coord = PROVINCE_COORDS.get(key)
         if coord:
             rows.append({
-                "provincia": r["Provincia"],
+                "provincia": _r.Provincia,
                 "capital"  : coord["capital"],
                 "lat"      : coord["lat"],
                 "lon"      : coord["lon"],
-                "valor"    : r["valor"],
+                "valor"    : _r.valor,
             })
     if not rows:
         return _no_data_fig("No se pudieron mapear provincias a coordenadas")
@@ -589,6 +591,7 @@ def chart_mapa_ecuador(df: pd.DataFrame, col_map: dict, metric: str = "volumen")
 # 9b. Mapa de Rutas Pendientes (flechas origen → destino)
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=60, show_spinner=False)   # gráfico pesado → cachear
 def chart_mapa_rutas_pendientes(
     df: pd.DataFrame,
     col_map: dict,
@@ -672,12 +675,16 @@ def chart_mapa_rutas_pendientes(
     fig = go.Figure()
     legend_added: set[str] = set()
 
-    # ── 4. Dibujar rutas ──────────────────────────────────────────────────
-    for _, row in routes.iterrows():
-        orig_key = str(row[col_orig]).upper().strip()
-        dest_key = str(row[col_dest]).upper().strip()
-        count    = int(row["count"])
-        h_prom   = row.get("horas_prom", np.nan)
+    # ── 4. Dibujar rutas (zip en vez de iterrows — más rápido) ─────────────
+    _origs  = routes[col_orig].astype(str).tolist()
+    _dests  = routes[col_dest].astype(str).tolist()
+    _counts = routes["count"].tolist()
+    _horas  = (routes["horas_prom"].tolist()
+               if "horas_prom" in routes.columns else [np.nan] * len(routes))
+    for _o, _d, _c, h_prom in zip(_origs, _dests, _counts, _horas):
+        orig_key = _o.upper().strip()
+        dest_key = _d.upper().strip()
+        count    = int(_c)
 
         co = PROVINCE_COORDS.get(orig_key)
         cd = PROVINCE_COORDS.get(dest_key)
@@ -979,6 +986,7 @@ def chart_tiempo_por_origen(
 # 14. Heatmap origen × destino de tiempos  (nuevo)
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=60, show_spinner=False)   # pivot + heatmap → cachear
 def chart_heatmap_tiempos_od(df: pd.DataFrame, col_map: dict) -> go.Figure:
     """
     Heatmap: filas = provincia origen, columnas = provincia destino,
@@ -1045,6 +1053,7 @@ def chart_heatmap_tiempos_od(df: pd.DataFrame, col_map: dict) -> go.Figure:
 # 15. Resumen por Estado (barras + métricas)  (nuevo)
 # ---------------------------------------------------------------------------
 
+@st.cache_data(ttl=60, show_spinner=False)   # subplots 2 paneles → cachear
 def chart_resumen_por_estado(df: pd.DataFrame, col_map: dict) -> go.Figure:
     """
     Dos paneles: volumen por estado (con % del total) + tiempo promedio de gestión.
