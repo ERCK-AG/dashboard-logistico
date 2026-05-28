@@ -248,61 +248,9 @@ if specialty_dfs:
         df_raw, col_map, specialty_dfs, warn_list, err_list = get_data_with_refresh(ROOT_DIR)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# ENRIQUECIMIENTO — N° de Pedido por lookup desde hojas de especialidad
-# ═══════════════════════════════════════════════════════════════════════════
-# La hoja "Estado de Gestión" NO tiene columna de pedido — pero las hojas
-# de especialidad (ENVIOS CENTRO/PROVINCIAS) sí, asociado a GUIA 1/2/3.
-# Construimos un diccionario { guia → pedido } y lo unimos a df_raw.
-if df_raw is not None and not df_raw.empty and specialty_dfs:
-    _pedido_lookup:  dict[str, str] = {}   # guia → N° pedido
-    _agencia_lookup: dict[str, str] = {}   # guia → nombre de agencia/centro
-    for _sn_p, (_sraw_p, _, _) in specialty_dfs.items():
-        _col_ped = sv.find_col(
-            _sraw_p, "PEDIDO", "pedido", "N° Pedido",
-            "Documento compras", "documento compras",
-        )
-        # Agencia destino (logística) o Nombre 1 / Centro (telefonía)
-        _col_ag = sv.find_col(
-            _sraw_p, "AGENCIA DESTINO", "agencia destino",
-            "Nombre 1", "nombre 1", "Centro", "centro",
-        )
-        # Recorrer GUIA 1, GUIA 2, GUIA 3 — cualquiera puede mapear
-        for _gname in ("GUIA 1", "GUIA 2", "GUIA 3"):
-            _col_g = sv.find_col(_sraw_p, _gname, _gname.lower())
-            if not _col_g or _col_g not in _sraw_p.columns:
-                continue
-            _cols_take = [_col_g]
-            if _col_ped and _col_ped in _sraw_p.columns:
-                _cols_take.append(_col_ped)
-            if _col_ag and _col_ag in _sraw_p.columns and _col_ag not in _cols_take:
-                _cols_take.append(_col_ag)
-            _sub = _sraw_p[_cols_take].dropna(subset=[_col_g])
-            for _, _row in _sub.iterrows():
-                _g = str(_row[_col_g]).strip()
-                if not _g or _g in ("nan", "None", ""):
-                    continue
-                # Pedido
-                if _col_ped and _g not in _pedido_lookup:
-                    _p = _row.get(_col_ped)
-                    if pd.notna(_p) and str(_p).strip() not in ("", "nan"):
-                        _pedido_str = str(_p).strip()
-                        if _pedido_str.endswith(".0"):
-                            _pedido_str = _pedido_str[:-2]
-                        _pedido_lookup[_g] = _pedido_str
-                # Agencia
-                if _col_ag and _g not in _agencia_lookup:
-                    _a = _row.get(_col_ag)
-                    if pd.notna(_a) and str(_a).strip() not in ("", "nan"):
-                        _agencia_lookup[_g] = str(_a).strip()
-
-    # Agregar columnas _n_pedido y _agencia al df_raw
-    _col_guia_main = col_map.get("guia") if col_map else None
-    if _col_guia_main and _col_guia_main in df_raw.columns:
-        df_raw = df_raw.copy()
-        _guia_norm = df_raw[_col_guia_main].astype(str).str.strip()
-        df_raw["_n_pedido"] = _guia_norm.map(_pedido_lookup).fillna("NA")
-        df_raw["_agencia"]  = _guia_norm.map(_agencia_lookup).fillna("—")
+# ── Enriquecimiento (N° Pedido + Agencia) ──────────────────────────────────
+# Se calcula DENTRO de load_all_sheets (cacheado) por rendimiento — las
+# columnas _n_pedido y _agencia ya vienen en df_raw. Ver data_loader._build_enrichment.
 
 
 # ═══════════════════════════════════════════════════════════════════════════

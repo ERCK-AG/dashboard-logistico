@@ -135,7 +135,7 @@ def _to_direct_download_url(share_url: str) -> str:
     return s
 
 
-@st.cache_data(ttl=30, show_spinner="📥 Descargando Excel desde OneDrive…")
+@st.cache_data(ttl=60, show_spinner="📥 Descargando Excel desde OneDrive…")
 def download_excel_from_url(share_url: str) -> Optional[str]:
     """
     Descarga un Excel desde una URL pública a un archivo temporal.
@@ -231,7 +231,7 @@ def _open_excel(filepath: Path, warnings_list: list) -> Optional[pd.ExcelFile]:
 # Función principal con caché
 # ---------------------------------------------------------------------------
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=60, show_spinner=False)
 def load_all_sheets(filepath_str: str, file_mtime: float) -> tuple[
     Optional[pd.DataFrame],   # df principal (Estado de Gestión)
     Optional[dict],           # col_map del principal
@@ -308,7 +308,72 @@ def load_all_sheets(filepath_str: str, file_mtime: float) -> tuple[
         names = ", ".join(f"'{k}'" for k in specialty)
         warnings_list.append(f"Hojas de especialidad cargadas: {names}")
 
+    # ── Enriquecimiento (N° Pedido + Agencia) — dentro del caché ──────────────
+    # Antes corría en cada rerun de app.py con iterrows() (lento). Ahora se
+    # calcula una sola vez por ventana de caché, vectorizado con zip().
+    df_main = _build_enrichment(df_main, col_map, specialty)
+
     return df_main, col_map, specialty, warnings_list, errors_list
+
+
+# ---------------------------------------------------------------------------
+# Enriquecimiento: N° Pedido + Agencia por lookup con hojas de especialidad
+# ---------------------------------------------------------------------------
+
+def _build_enrichment(df_main, col_map, specialty):
+    """
+    Agrega columnas _n_pedido y _agencia a df_main cruzando GUIA 1/2/3 con
+    las hojas de especialidad. Vectorizado con zip() (no iterrows).
+    """
+    if df_main is None or df_main.empty or not col_map:
+        return df_main
+    col_guia = col_map.get("guia")
+    if not col_guia or col_guia not in df_main.columns:
+        return df_main
+    if not specialty:
+        return df_main
+
+    # Reutilizamos find_col de specialty_views (lazy import, evita ciclos)
+    from modules.specialty_views import find_col as _find_col
+
+    pedido_lookup:  dict[str, str] = {}
+    agencia_lookup: dict[str, str] = {}
+
+    for _sn, (_sraw, _, _) in specialty.items():
+        col_ped = _find_col(_sraw, "PEDIDO", "pedido", "N° Pedido",
+                            "Documento compras", "documento compras")
+        col_ag = _find_col(_sraw, "AGENCIA DESTINO", "agencia destino",
+                          "Nombre 1", "nombre 1", "Centro", "centro")
+        for gname in ("GUIA 1", "GUIA 2", "GUIA 3"):
+            col_g = _find_col(_sraw, gname, gname.lower())
+            if not col_g or col_g not in _sraw.columns:
+                continue
+            gvals = _sraw[col_g].astype(str).str.strip().tolist()
+            n = len(gvals)
+            pvals = (_sraw[col_ped].tolist()
+                     if col_ped and col_ped in _sraw.columns else [None] * n)
+            avals = (_sraw[col_ag].tolist()
+                     if col_ag and col_ag in _sraw.columns else [None] * n)
+            # zip sobre listas — ~50x más rápido que iterrows
+            for g, p, a in zip(gvals, pvals, avals):
+                if not g or g in ("nan", "None", ""):
+                    continue
+                if g not in pedido_lookup and p is not None and pd.notna(p):
+                    ps = str(p).strip()
+                    if ps not in ("", "nan"):
+                        if ps.endswith(".0"):
+                            ps = ps[:-2]
+                        pedido_lookup[g] = ps
+                if g not in agencia_lookup and a is not None and pd.notna(a):
+                    a_str = str(a).strip()
+                    if a_str not in ("", "nan"):
+                        agencia_lookup[g] = a_str
+
+    guia_norm = df_main[col_guia].astype(str).str.strip()
+    df_main = df_main.copy()
+    df_main["_n_pedido"] = guia_norm.map(pedido_lookup).fillna("NA")
+    df_main["_agencia"]  = guia_norm.map(agencia_lookup).fillna("—")
+    return df_main
 
 
 # ---------------------------------------------------------------------------
