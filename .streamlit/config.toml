@@ -1,0 +1,19 @@
+# Configuración de Streamlit
+# Este archivo SÍ se sube a GitHub (no contiene secretos)
+
+[client]
+# "minimal" oculta la barra de herramientas del desarrollador y desactiva
+# los atajos de teclado (como "C" para limpiar caché, "R" para rerun)
+# que interferían al copiar con Ctrl+C.
+toolbarMode = "minimal"
+
+# No mostrar el botón de error detallado a usuarios finales
+showErrorDetails = false
+
+[theme]
+# Tema claro corporativo
+base = "light"
+primaryColor = "#1A7A3C"
+
+[browser]
+gatherUsageStats = false
