@@ -1482,14 +1482,30 @@ def build_gestion_table_df(
     working = df.copy()
 
     # Ordenamiento
-    if entregados_last and "_entregado" in working.columns and "_tiempo_gestion_horas" in working.columns:
-        # Pendientes primero (_entregado=False), luego entregados.
+    if entregados_last and "_tiempo_gestion_horas" in working.columns:
+        # Prioridad de 3 niveles:
+        #   0 = pendiente real (arriba)
+        #   1 = entregado (en medio)
+        #   2 = devolución al shipper (al final de toda la tabla)
         # Dentro de cada grupo: mayor tiempo de gestión arriba.
-        working = working.sort_values(
-            ["_entregado", "_tiempo_gestion_horas"],
-            ascending=[True, ascending],   # entregado asc (False<True), tiempo según flag
-            na_position="last",
+        _est_upper = (
+            working[col_estado].astype(str).str.upper()
+            if col_estado and col_estado in working.columns
+            else pd.Series("", index=working.index)
         )
+        _entreg = (
+            working["_entregado"]
+            if "_entregado" in working.columns
+            else pd.Series(False, index=working.index)
+        )
+        _prioridad = pd.Series(0, index=working.index)
+        _prioridad = _prioridad.mask(_entreg == True, 1)               # entregados
+        _prioridad = _prioridad.mask(_est_upper.str.contains("DEVOLUCION", na=False), 2)  # devoluciones
+        working = working.assign(_sort_prio=_prioridad).sort_values(
+            ["_sort_prio", "_tiempo_gestion_horas"],
+            ascending=[True, ascending],
+            na_position="last",
+        ).drop(columns=["_sort_prio"])
     elif "_tiempo_gestion_horas" in working.columns:
         working = working.sort_values(
             "_tiempo_gestion_horas", ascending=ascending, na_position="last"
