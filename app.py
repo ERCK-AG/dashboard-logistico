@@ -808,9 +808,16 @@ with tab1:
 
         st.divider()
         sec("Top 10 Guías Pendientes con Mayor Tiempo de Gestión", "🔴")
-        st.caption("Excluye guías ya entregadas — solo muestra las que siguen abiertas.")
-        # Excluir las guías ya entregadas: el Top 10 debe resaltar pendientes
-        _df_top = df[df["_entregado"] == False].copy() if "_entregado" in df.columns else df
+        st.caption("Excluye guías entregadas y devoluciones al shipper — solo gestión pendiente real.")
+        # Excluir entregadas Y devoluciones al shipper (esas tienen su propia tabla abajo)
+        _df_top = df[df["_entregado"] == False].copy() if "_entregado" in df.columns else df.copy()
+        _col_est_top = col_map.get("estado")
+        if _col_est_top and _col_est_top in _df_top.columns:
+            _df_top = _df_top[
+                ~_df_top[_col_est_top].astype(str).str.upper().str.contains(
+                    "DEVOLUCION", na=False
+                )
+            ]
         top10_df = build_gestion_table_df(_df_top, col_map, ascending=False, max_rows=10)
         st.dataframe(
             top10_df.style.apply(
@@ -949,6 +956,33 @@ with tab1:
             "tiempos_gestion.xlsx", XLSX_MIME,
             key="dl_gestion",
         )
+
+        # ── Tabla dedicada: Devoluciones al Shipper ────────────────────────
+        st.divider()
+        sec("Devoluciones al Shipper", "↩️")
+        _col_est_dev = col_map.get("estado")
+        if _col_est_dev and _col_est_dev in df.columns:
+            _df_dev = df[
+                df[_col_est_dev].astype(str).str.upper().str.contains(
+                    "DEVOLUCION", na=False
+                )
+            ].copy()
+            tbl_dev = build_gestion_table_df(
+                _df_dev, col_map, ascending=False, max_rows=2000
+            )
+            st.caption(f"🔄 **{len(tbl_dev):,}** guía(s) en devolución al shipper")
+            if tbl_dev.empty:
+                st.success("✅ No hay devoluciones al shipper actualmente.")
+            else:
+                st.dataframe(tbl_dev, use_container_width=True, height=400)
+                st.download_button(
+                    "⬇️ Exportar Devoluciones Excel",
+                    _to_xlsx(tbl_dev),
+                    "devoluciones_shipper.xlsx", XLSX_MIME,
+                    key="dl_devoluciones",
+                )
+        else:
+            st.info("No se detectó columna de Estado para filtrar devoluciones.")
 
 
 # ══ TAB 3 — POR ESTADO ═════════════════════════════════════════════════════
