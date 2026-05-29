@@ -57,6 +57,7 @@ from modules.charts import (
     chart_distribucion_gestion, chart_gestion_por_estado,
     build_gestion_table_df, format_horas, chart_mapa_rutas_pendientes,
     chart_envios_tiempo_por_provincia, chart_ranking_gestionistas,
+    chart_donut_entregados_pendientes,
 )
 from modules.alerts import check_alerts, get_delayed_orders
 from modules.cleaner import DELIVERED_STATES, _normalize_str as _ns
@@ -966,6 +967,35 @@ with tab3:
         sec("Resumen General por Estado", "📊")
         st.plotly_chart(chart_resumen_por_estado(df, col_map),
                         use_container_width=True, key="ch_resumen_estado")
+        st.divider()
+
+        # ── Donuts Entregados vs Pendientes por tipo de envío ─────────────
+        sec("Entregados vs Pendientes por Tipo de Envío", "🍩")
+        _SPEC_DONUT = [
+            ("ENVÍOS ENTRE PROVINCIAS",       "Traslados Entre Provincias"),
+            ("ENVÍOS TELEFONÍA MÓVIL",        "Telefonía Móvil"),
+            ("ENVÍOS CENTRO DE DISTRIBUCIÓN", "Centro de Distribución"),
+        ]
+        _donut_cols = st.columns(3)
+        _col_guia_d = col_map.get("guia")
+        for _di, (_canon, _disp) in enumerate(_SPEC_DONUT):
+            with _donut_cols[_di]:
+                if specialty_dfs and _canon in specialty_dfs and _col_guia_d and _col_guia_d in df.columns:
+                    _sraw_d, _, _ = specialty_dfs[_canon]
+                    _cg_d = sv.find_col(_sraw_d, "GUIA 1", "guia 1")
+                    if _cg_d and _cg_d in _sraw_d.columns:
+                        _gs_d = set(_sraw_d[_cg_d].dropna().astype(str).str.strip())
+                        _gs_d = {g for g in _gs_d if g not in ("", "nan", "None")}
+                        _df_sp = df[df[_col_guia_d].astype(str).str.strip().isin(_gs_d)]
+                        st.plotly_chart(
+                            chart_donut_entregados_pendientes(_df_sp, _disp),
+                            use_container_width=True,
+                            key=f"ch_donut_sp_{_di}",
+                        )
+                    else:
+                        st.info(f"Sin columna de guías — {_disp}")
+                else:
+                    st.info(f"Hoja no cargada — {_disp}")
         st.divider()
 
         sec("Análisis Detallado por Estado", "🔍")

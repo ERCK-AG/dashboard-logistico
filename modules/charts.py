@@ -1790,6 +1790,52 @@ def chart_ranking_gestionistas(
     return fig, summary[cols_out].sort_values("Pedidos", ascending=False).reset_index(drop=True)
 
 
+def chart_donut_entregados_pendientes(
+    df: pd.DataFrame,
+    title: str,
+) -> go.Figure:
+    """Donut: Entregados vs Pendientes para un subconjunto de pedidos."""
+    if df.empty or "_entregado" not in df.columns:
+        return _no_data_fig(f"Sin datos\n{title}")
+
+    total      = len(df)
+    entregados = int(df["_entregado"].sum())
+    pendientes = total - entregados
+
+    fig = go.Figure(go.Pie(
+        labels=["Entregados", "Pendientes"],
+        values=[entregados, pendientes],
+        hole=0.55,
+        marker=dict(
+            colors=["#1A7A3C", "#E67E22"],
+            line=dict(color="white", width=2.5),
+        ),
+        textinfo="label+percent",
+        textfont=dict(size=12),
+        hovertemplate="<b>%{label}</b><br>%{value} pedidos (%{percent})<extra></extra>",
+        sort=False,
+    ))
+    fig.add_annotation(
+        text=f"<b>{total}</b><br><span style='font-size:11px'>total</span>",
+        x=0.5, y=0.5, xref="paper", yref="paper",
+        showarrow=False,
+        font=dict(size=18, color="#1C2A1E"),
+    )
+    fig.update_layout(
+        title=dict(text=title, font=dict(size=13, color="#1C2A1E"), x=0.02),
+        height=300,
+        paper_bgcolor="white",
+        plot_bgcolor="white",
+        margin=dict(t=45, b=10, l=10, r=10),
+        legend=dict(
+            orientation="h", y=-0.05, x=0.5,
+            xanchor="center", font=dict(size=11),
+        ),
+        showlegend=True,
+    )
+    return fig
+
+
 def chart_sla_gauge(kpis: dict) -> go.Figure:
     val = kpis.get("cumplimiento_pct")
     if val is None:
