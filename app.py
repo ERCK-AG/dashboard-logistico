@@ -964,11 +964,6 @@ with tab3:
     if not col_est or col_est not in df.columns:
         st.warning("⚠️ No se detectó columna de Estado.")
     else:
-        sec("Resumen General por Estado", "📊")
-        st.plotly_chart(chart_resumen_por_estado(df, col_map),
-                        use_container_width=True, key="ch_resumen_estado")
-        st.divider()
-
         # ── Donuts Entregados vs Pendientes por tipo de envío ─────────────
         sec("Entregados vs Pendientes por Tipo de Envío", "🍩")
         _SPEC_DONUT = [
