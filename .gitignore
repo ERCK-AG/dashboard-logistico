@@ -5,6 +5,8 @@
 # ── Secretos y credenciales ────────────────────────────────────────────
 .streamlit/secrets.toml
 *.env
+ACCESO_MOVIL.md
+ACCESO_*.md
 
 # ── Datos sensibles del negocio ────────────────────────────────────────
 *.xlsx
